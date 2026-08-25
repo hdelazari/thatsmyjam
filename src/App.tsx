@@ -106,6 +106,11 @@ function App() {
     }
   };
 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setInputValue("");
+  };
+
   useEffect(() => {
     // Fetch the file from public/songs/test.txt
     fetch("/songs/test.txt")
@@ -135,7 +140,7 @@ function App() {
         <pre dangerouslySetInnerHTML={{ __html: displayText }} />
       </div>
 
-      <form className="input-box" onSubmit={(e) => e.preventDefault()}>
+      <form className="input-box" onSubmit={handleSubmit}>
         <input
           type="text"
           value={inputValue}
