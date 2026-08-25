@@ -1,0 +1,39 @@
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* full screen */
+  justify-content: flex-end; /* push content to bottom */
+}
+
+.song-text {
+  padding: 10px;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+  white-space: pre-wrap; /* keeps line breaks */
+  overflow-y: auto; /* scroll if text is long */
+  max-height: 70%; /* prevent it from covering the whole screen */
+}
+
+.input-box {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #ccc;
+  background-color: #f9f9f9;
+}
+
+.input-box input {
+  flex: 1;
+  padding: 8px;
+  font-size: 16px;
+}
+
+.input-box button {
+  margin-left: 8px;
+  padding: 8px 12px;
+  font-size: 16px;
+}
+
+.highlight {
+  color: green;
+  font-weight: bold;
+}
