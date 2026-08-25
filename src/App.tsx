@@ -70,11 +70,12 @@ function App() {
 
       if (revealed.has(normalized)) {
         // Word is revealed - show the actual word
-        tokens[idx] = `<span class="revealed-word">${token}</span>`;
+        // Use fixed width to match blank word width
+        tokens[idx] = `<span class="revealed-word" style="width: ${token.length}ch">${token}</span>`;
       } else {
         // Word is not revealed - show a blank rectangle
-        // Use character count to estimate width (ch unit)
-        const blankWidth = word.length;
+        // Use the original token length to match the revealed word width
+        const blankWidth = token.length;
         tokens[idx] = `<span class="blank-word" style="width: ${blankWidth}ch">_</span>`;
       }
     });
