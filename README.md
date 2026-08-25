@@ -1,3 +1,13 @@
+# That's My Jam
+
+A React + TypeScript interactive game where players engage with song lyrics by typing words. As players type words, all instances of those words in the displayed text are permanently highlighted, creating a dynamic, evolving visual experience. The game explores how user interaction can transform and reveal patterns in text.
+
+**Core Mechanic:** Type a word → all occurrences highlight → text evolves based on player input
+
+## How to Run
+ ```npm run dev```
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
