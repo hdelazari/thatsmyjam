@@ -26,6 +26,14 @@
   white-space: pre-wrap; /* keeps line breaks */
   overflow-y: auto; /* scroll if text is long */
   max-height: 70%; /* prevent it from covering the whole screen */
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+}
+
+.song-text pre {
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .input-box {
@@ -50,4 +58,27 @@
 .highlight {
   color: green;
   font-weight: bold;
+}
+
+.blank-word {
+  display: inline-block;
+  background-color: #333;
+  color: #333;
+  border: 1px solid #666;
+  border-radius: 2px;
+  padding: 2px 4px;
+  margin: 0 2px;
+  font-weight: bold;
+  min-height: 1.2em;
+  line-height: 1.2em;
+}
+
+.revealed-word {
+  display: inline-block;
+  color: black;
+  padding: 2px 4px;
+  margin: 0 2px;
+  font-weight: bold;
+  min-height: 1.2em;
+  line-height: 1.2em;
 }

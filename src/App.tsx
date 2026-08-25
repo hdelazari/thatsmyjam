@@ -14,7 +14,7 @@ function App() {
   const [inputValue, setInputValue] = useState("");
   const [originalText, setOriginalText] = useState("");
   const [wordIndex, setWordIndex] = useState<WordIndex>({});
-  const [highlightedWords, setHighlightedWords] = useState<Set<string>>(
+  const [revealedWords, setRevealedWords] = useState<Set<string>>(
     new Set()
   );
 
@@ -53,10 +53,10 @@ function App() {
     return index;
   };
 
-  // Rebuild the text display based on original text and highlighted words
+  // Rebuild the text display based on original text and revealed words
   const rebuildText = (
     text: string,
-    highlighted: Set<string>
+    revealed: Set<string>
   ): string => {
     // Split on whitespace while preserving it
     const tokens = text.split(/(\s+)/);
@@ -68,8 +68,14 @@ function App() {
       const word = extractWord(token);
       const normalized = normalizeWord(word);
 
-      if (highlighted.has(normalized)) {
-        tokens[idx] = `<span class="highlight">${token}</span>`;
+      if (revealed.has(normalized)) {
+        // Word is revealed - show the actual word
+        tokens[idx] = `<span class="revealed-word">${token}</span>`;
+      } else {
+        // Word is not revealed - show a blank rectangle
+        // Use character count to estimate width (ch unit)
+        const blankWidth = word.length;
+        tokens[idx] = `<span class="blank-word" style="width: ${blankWidth}ch">_</span>`;
       }
     });
 
@@ -92,10 +98,10 @@ function App() {
 
       // Check if this word exists in the index
       if (wordIndex[normalizedInput]) {
-        // Add to highlighted words
-        const newHighlighted = new Set(highlightedWords);
-        newHighlighted.add(normalizedInput);
-        setHighlightedWords(newHighlighted);
+        // Add to revealed words
+        const newRevealed = new Set(revealedWords);
+        newRevealed.add(normalizedInput);
+        setRevealedWords(newRevealed);
       }
     }
   };
@@ -114,14 +120,14 @@ function App() {
       });
   }, []);
 
-  const displayText = rebuildText(originalText, highlightedWords);
+  const displayText = rebuildText(originalText, revealedWords);
   const totalUniqueWords = Object.keys(wordIndex).length;
-  const highlightedWordCount = highlightedWords.size;
+  const revealedWordCount = revealedWords.size;
 
   return (
     <div className="app-container">
       <div className="progress-tracker">
-        <h2>Progress: {highlightedWordCount} / {totalUniqueWords}</h2>
+        <h2>Progress: {revealedWordCount} / {totalUniqueWords}</h2>
       </div>
 
       <div className="song-text">
