@@ -115,9 +115,15 @@ function App() {
   }, []);
 
   const displayText = rebuildText(originalText, highlightedWords);
+  const totalUniqueWords = Object.keys(wordIndex).length;
+  const highlightedWordCount = highlightedWords.size;
 
   return (
     <div className="app-container">
+      <div className="progress-tracker">
+        <h2>Progress: {highlightedWordCount} / {totalUniqueWords}</h2>
+      </div>
+
       <div className="song-text">
         <h3>Song Text</h3>
         <pre dangerouslySetInnerHTML={{ __html: displayText }} />
