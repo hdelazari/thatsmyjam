@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -26,11 +27,28 @@ func init() {
 
 // loadSongs loads songs from the public/songs directory
 func loadSongs() {
-	// Read test.txt as the first song
-	lyricsPath := "public/songs/test.txt"
-	data, err := os.ReadFile(lyricsPath)
+	// Bazel runs binaries from an output directory, so try both the workspace
+	// path and the path relative to the compiled binary.
+	lyricsPaths := []string{"public/songs/test.txt"}
+	if executablePath, err := os.Executable(); err == nil {
+		executableDir := filepath.Dir(executablePath)
+		lyricsPaths = append(lyricsPaths, filepath.Join(
+			executableDir,
+			"..", "..", "..", "..", "..",
+			"public", "songs", "test.txt",
+		))
+	}
+
+	var data []byte
+	var err error
+	for _, lyricsPath := range lyricsPaths {
+		data, err = os.ReadFile(lyricsPath)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
-		log.Printf("Warning: Could not load test.txt: %v\n", err)
+		log.Printf("Warning: Could not load test.txt: %v", err)
 		return
 	}
 

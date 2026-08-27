@@ -10,6 +10,41 @@ interface WordIndex {
   [normalizedWord: string]: WordIndexEntry[];
 }
 
+// Extract word from token (keep alphanumeric and apostrophes only)
+const extractWord = (token: string): string => {
+  return token.replace(/[^a-zA-Z0-9'']/g, "");
+};
+
+// Normalize a word (lowercase + remove apostrophes)
+const normalizeWord = (word: string): string => {
+  return word.toLowerCase().replace(/['']/g, "");
+};
+
+// Build inverted index from original text
+const buildIndex = (text: string): WordIndex => {
+  const tokens = text.split(/\s+/);
+  const index: WordIndex = {};
+
+  tokens.forEach((token, idx) => {
+    if (token.trim()) {
+      const word = extractWord(token);
+      const normalized = normalizeWord(word);
+
+      if (normalized) {
+        if (!index[normalized]) {
+          index[normalized] = [];
+        }
+        index[normalized].push({
+          index: idx,
+          originalToken: token,
+        });
+      }
+    }
+  });
+
+  return index;
+};
+
 function App() {
   const [inputValue, setInputValue] = useState("");
   const [originalText, setOriginalText] = useState("");
@@ -17,41 +52,6 @@ function App() {
   const [revealedWords, setRevealedWords] = useState<Set<string>>(
     new Set()
   );
-
-  // Extract word from token (keep alphanumeric and apostrophes only)
-  const extractWord = (token: string): string => {
-    return token.replace(/[^a-zA-Z0-9'']/g, "");
-  };
-
-  // Normalize a word (lowercase + remove apostrophes)
-  const normalizeWord = (word: string): string => {
-    return word.toLowerCase().replace(/['']/g, "");
-  };
-
-  // Build inverted index from original text
-  const buildIndex = (text: string): WordIndex => {
-    const tokens = text.split(/\s+/);
-    const index: WordIndex = {};
-
-    tokens.forEach((token, idx) => {
-      if (token.trim()) {
-        const word = extractWord(token);
-        const normalized = normalizeWord(word);
-
-        if (normalized) {
-          if (!index[normalized]) {
-            index[normalized] = [];
-          }
-          index[normalized].push({
-            index: idx,
-            originalToken: token,
-          });
-        }
-      }
-    });
-
-    return index;
-  };
 
   // Rebuild the text display based on original text and revealed words
   const rebuildText = (
@@ -113,12 +113,17 @@ function App() {
   };
 
   useEffect(() => {
-    // Fetch the file from public/songs/test.txt
-    fetch("/songs/test.txt")
-      .then((response) => response.text())
-      .then((data) => {
-        setOriginalText(data);
-        const index = buildIndex(data);
+    // Fetch the song from the Go backend
+    fetch("/api/songs/test")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load song: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((song: { lyrics: string }) => {
+        setOriginalText(song.lyrics);
+        const index = buildIndex(song.lyrics);
         setWordIndex(index);
       })
       .catch((error) => {

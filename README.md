@@ -5,7 +5,27 @@ A React + TypeScript interactive game where players engage with song lyrics by t
 **Core Mechanic:** Type a word → all occurrences highlight → text evolves based on player input
 
 ## How to Run
- ```npm run dev```
+Run the backend and frontend in separate terminals.
+
+### Backend
+
+From the project root, start the Go API with Bazel:
+
+```powershell
+bazel run //backend:backend
+```
+
+The backend runs at `http://localhost:8080`.
+
+### Frontend
+
+In a second terminal, start the Vite development server:
+
+```powershell
+npm run dev
+```
+
+Open the frontend URL shown by Vite, usually `http://localhost:5173`. The frontend uses the Vite proxy to request lyrics from the backend.
 
 
 # React + TypeScript + Vite
