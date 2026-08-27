@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bazel output directories
+bazel-*
+.cache/bazel
+
+# Optional: ignore local overrides
+.bazelrc.user
