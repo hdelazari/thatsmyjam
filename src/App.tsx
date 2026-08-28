@@ -15,14 +15,18 @@ interface SearchResult {
   title: string;
 }
 
-// Extract word from token (keep alphanumeric and apostrophes only)
+// Extract words while preserving Unicode letters, numbers, apostrophes, and hyphens.
 const extractWord = (token: string): string => {
-  return token.replace(/[^a-zA-Z0-9'']/g, "");
+  return token.replace(/[^\p{L}\p{N}'’-]/gu, "");
 };
 
-// Normalize a word (lowercase + remove apostrophes)
+// Normalize case, diacritics, and apostrophes while preserving hyphens.
 const normalizeWord = (word: string): string => {
-  return word.toLowerCase().replace(/['']/g, "");
+  return word
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/['']/g, "");
 };
 
 // Build inverted index from original text
