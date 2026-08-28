@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
+	"net/url"
 	"strings"
+	"sync"
+	"time"
 )
 
 // Song represents a song with its lyrics
@@ -17,58 +18,94 @@ type Song struct {
 	Lyrics string `json:"lyrics"`
 }
 
-// SongStore holds all available songs
-var songStore map[string]Song
+const (
+	lrclibURL = "https://lrclib.net/api/get"
+)
 
-func init() {
-	songStore = make(map[string]Song)
-	loadSongs()
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+var songCache struct {
+	sync.Mutex
+	id   string
+	song *Song
 }
 
-// loadSongs loads songs from the public/songs directory
-func loadSongs() {
-	// Bazel runs binaries from an output directory, so try both the workspace
-	// path and the path relative to the compiled binary.
-	lyricsPaths := []string{"public/songs/test.txt"}
-	if executablePath, err := os.Executable(); err == nil {
-		executableDir := filepath.Dir(executablePath)
-		lyricsPaths = append(lyricsPaths, filepath.Join(
-			executableDir,
-			"..", "..", "..", "..", "..",
-			"public", "songs", "test.txt",
-		))
+type lrclibResponse struct {
+	TrackName   string `json:"trackName"`
+	ArtistName  string `json:"artistName"`
+	PlainLyrics string `json:"plainLyrics"`
+}
+
+type lrclibSearchResult struct {
+	ID         int    `json:"id"`
+	TrackName  string `json:"trackName"`
+	ArtistName string `json:"artistName"`
+}
+
+func fetchSong(lrclibID string) (Song, error) {
+	songCache.Lock()
+	defer songCache.Unlock()
+
+	if songCache.song != nil && songCache.id == lrclibID {
+		return *songCache.song, nil
 	}
 
-	var data []byte
-	var err error
-	for _, lyricsPath := range lyricsPaths {
-		data, err = os.ReadFile(lyricsPath)
-		if err == nil {
-			break
-		}
-	}
+	lyricsRequestURL := lrclibURL + "/" + url.PathEscape(lrclibID)
+	request, err := http.NewRequest(http.MethodGet, lyricsRequestURL, nil)
 	if err != nil {
-		log.Printf("Warning: Could not load test.txt: %v", err)
-		return
+		return Song{}, fmt.Errorf("create lyrics request: %w", err)
+	}
+	request.Header.Set("User-Agent", "ThatsMyJam/DEV https://github.com/hdelazari/thatsmyjam")
+
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return Song{}, fmt.Errorf("request lyrics: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return Song{}, fmt.Errorf("LRCLIB returned status %d", response.StatusCode)
 	}
 
-	songStore["test"] = Song{
-		ID:    "test",
-		Title: "Test Song",
-		Lyrics: string(data),
+	var payload lrclibResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		return Song{}, fmt.Errorf("decode lyrics response: %w", err)
 	}
-	log.Println("Loaded song: test")
+	lyrics := strings.TrimSpace(payload.PlainLyrics)
+	if lyrics == "" {
+		return Song{}, fmt.Errorf("LRCLIB returned no plain lyrics")
+	}
+
+	song := Song{
+		ID:     "test",
+		Title:  "Meant to Be Yours",
+		Lyrics: lyrics,
+	}
+	songCache.song = &song
+	songCache.id = lrclibID
+	return song, nil
 }
 
 // handleGetSong returns a song by ID
 func handleGetSong(w http.ResponseWriter, r *http.Request) {
 	songID := strings.TrimPrefix(r.URL.Path, "/api/songs/")
 
-	song, exists := songStore[songID]
-	if !exists {
+	if songID != "test" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Song not found"})
+		return
+	}
+
+	lrclibID := r.URL.Query().Get("lrclib_id")
+	if lrclibID == "" {
+		http.Error(w, "lrclib_id query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	song, err := fetchSong(lrclibID)
+	if err != nil {
+		log.Printf("Could not fetch song %q: %v", songID, err)
+		http.Error(w, "Unable to load song lyrics", http.StatusBadGateway)
 		return
 	}
 
@@ -87,13 +124,41 @@ func handleSearchSongs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var results []Song
-	query = strings.ToLower(query)
+	searchURL := "https://lrclib.net/api/search?" + url.Values{
+		"track_name": {query},
+	}.Encode()
+	request, err := http.NewRequest(http.MethodGet, searchURL, nil)
+	if err != nil {
+		http.Error(w, "Unable to create search request", http.StatusInternalServerError)
+		return
+	}
+	request.Header.Set("User-Agent", "ThatsMyJam/1.0")
 
-	for _, song := range songStore {
-		if strings.Contains(strings.ToLower(song.Title), query) {
-			results = append(results, song)
-		}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		log.Printf("Could not search songs: %v", err)
+		http.Error(w, "Unable to search songs", http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		http.Error(w, "Lyrics provider search failed", http.StatusBadGateway)
+		return
+	}
+
+	var matches []lrclibSearchResult
+	if err := json.NewDecoder(response.Body).Decode(&matches); err != nil {
+		http.Error(w, "Unable to decode search results", http.StatusBadGateway)
+		return
+	}
+
+	results := make([]Song, 0, len(matches))
+	for _, match := range matches {
+		results = append(results, Song{
+			ID:    fmt.Sprintf("%d", match.ID),
+			Title: fmt.Sprintf("%s - %s", match.TrackName, match.ArtistName),
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -103,14 +168,7 @@ func handleSearchSongs(w http.ResponseWriter, r *http.Request) {
 
 // handleListSongs returns all available songs
 func handleListSongs(w http.ResponseWriter, r *http.Request) {
-	var songs []Song
-	for _, song := range songStore {
-		songs = append(songs, Song{
-			ID:    song.ID,
-			Title: song.Title,
-			// Don't include lyrics in the list response
-		})
-	}
+	songs := []Song{{ID: "test", Title: "Test Song"}}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

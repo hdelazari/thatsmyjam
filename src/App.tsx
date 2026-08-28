@@ -10,6 +10,11 @@ interface WordIndex {
   [normalizedWord: string]: WordIndexEntry[];
 }
 
+interface SearchResult {
+  id: string;
+  title: string;
+}
+
 // Extract word from token (keep alphanumeric and apostrophes only)
 const extractWord = (token: string): string => {
   return token.replace(/[^a-zA-Z0-9'']/g, "");
@@ -47,7 +52,10 @@ const buildIndex = (text: string): WordIndex => {
 
 function App() {
   const [inputValue, setInputValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [originalText, setOriginalText] = useState("");
+  const [songTitle, setSongTitle] = useState("");
   const [wordIndex, setWordIndex] = useState<WordIndex>({});
   const [revealedWords, setRevealedWords] = useState<Set<string>>(
     new Set()
@@ -112,16 +120,58 @@ function App() {
     setInputValue("");
   };
 
-  useEffect(() => {
-    // Fetch the song from the Go backend
-    fetch("/api/songs/test")
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    fetch(`/api/songs/search?q=${encodeURIComponent(query)}`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to search songs: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((results: SearchResult[]) => setSearchResults(results))
+      .catch((error) => {
+        console.error("Error searching songs:", error);
+        setSearchResults([]);
+      });
+  };
+
+  const handleSongSelect = (songId: string) => {
+    fetch(`/api/songs/test?lrclib_id=${encodeURIComponent(songId)}`)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to load song: ${response.status}`);
         }
         return response.json();
       })
-      .then((song: { lyrics: string }) => {
+      .then((song: { title: string; lyrics: string }) => {
+        setSongTitle(song.title);
+        setOriginalText(song.lyrics);
+        setWordIndex(buildIndex(song.lyrics));
+        setRevealedWords(new Set());
+        setSearchResults([]);
+        setSearchQuery("");
+      })
+      .catch((error) => console.error("Error loading song:", error));
+  };
+
+  useEffect(() => {
+    // Fetch the song from the Go backend
+    fetch("/api/songs/test?lrclib_id=34858080")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load song: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((song: { title: string; lyrics: string }) => {
+        setSongTitle(song.title);
         setOriginalText(song.lyrics);
         const index = buildIndex(song.lyrics);
         setWordIndex(index);
@@ -137,12 +187,36 @@ function App() {
 
   return (
     <div className="app-container">
+      <form className="search-box" onSubmit={handleSearch}>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search for a song..."
+        />
+        <button type="submit">Search</button>
+      </form>
+
+      {searchResults.length > 0 && (
+        <div className="search-results">
+          {searchResults.map((result) => (
+            <button
+              key={result.id}
+              type="button"
+              onClick={() => handleSongSelect(result.id)}
+            >
+              {result.title}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="progress-tracker">
         <h2>Progress: {revealedWordCount} / {totalUniqueWords}</h2>
       </div>
 
       <div className="song-text">
-        <h3>Song Text</h3>
+        <h3>{songTitle || "Loading..."}</h3>
         <pre dangerouslySetInnerHTML={{ __html: displayText }} />
       </div>
 
