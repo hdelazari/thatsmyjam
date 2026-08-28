@@ -30,6 +30,7 @@ var songCache struct {
 }
 
 type lrclibResponse struct {
+	ID          int    `json:"id"`
 	TrackName   string `json:"trackName"`
 	ArtistName  string `json:"artistName"`
 	PlainLyrics string `json:"plainLyrics"`
@@ -75,9 +76,18 @@ func fetchSong(lrclibID string) (Song, error) {
 		return Song{}, fmt.Errorf("LRCLIB returned no plain lyrics")
 	}
 
+	songID := lrclibID
+	if payload.ID != 0 {
+		songID = fmt.Sprintf("%d", payload.ID)
+	}
+	title := payload.TrackName
+	if title == "" {
+		title = "Unknown song"
+	}
+
 	song := Song{
-		ID:     "test",
-		Title:  "Meant to Be Yours",
+		ID:     songID,
+		Title:  title,
 		Lyrics: lyrics,
 	}
 	songCache.song = &song
@@ -85,17 +95,8 @@ func fetchSong(lrclibID string) (Song, error) {
 	return song, nil
 }
 
-// handleGetSong returns a song by ID
+// handleGetSong returns a song selected by its LRCLIB ID.
 func handleGetSong(w http.ResponseWriter, r *http.Request) {
-	songID := strings.TrimPrefix(r.URL.Path, "/api/songs/")
-
-	if songID != "test" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Song not found"})
-		return
-	}
-
 	lrclibID := r.URL.Query().Get("lrclib_id")
 	if lrclibID == "" {
 		http.Error(w, "lrclib_id query parameter is required", http.StatusBadRequest)
@@ -104,7 +105,7 @@ func handleGetSong(w http.ResponseWriter, r *http.Request) {
 
 	song, err := fetchSong(lrclibID)
 	if err != nil {
-		log.Printf("Could not fetch song %q: %v", songID, err)
+		log.Printf("Could not fetch LRCLIB song %q: %v", lrclibID, err)
 		http.Error(w, "Unable to load song lyrics", http.StatusBadGateway)
 		return
 	}
@@ -168,6 +169,11 @@ func handleSearchSongs(w http.ResponseWriter, r *http.Request) {
 
 // handleListSongs returns all available songs
 func handleListSongs(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("lrclib_id") != "" {
+		handleGetSong(w, r)
+		return
+	}
+
 	songs := []Song{{ID: "test", Title: "Test Song"}}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -186,7 +192,6 @@ func main() {
 	// API routes
 	http.HandleFunc("/api/health", handleHealth)
 	http.HandleFunc("/api/songs/search", handleSearchSongs)
-	http.HandleFunc("/api/songs/", handleGetSong)
 	http.HandleFunc("/api/songs", handleListSongs)
 
 	port := ":8080"

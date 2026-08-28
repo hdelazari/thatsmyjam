@@ -143,7 +143,7 @@ function App() {
   };
 
   const handleSongSelect = (songId: string) => {
-    fetch(`/api/songs/test?lrclib_id=${encodeURIComponent(songId)}`)
+    fetch(`/api/songs?lrclib_id=${encodeURIComponent(songId)}`)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to load song: ${response.status}`);
@@ -163,7 +163,7 @@ function App() {
 
   useEffect(() => {
     // Fetch the song from the Go backend
-    fetch("/api/songs/test?lrclib_id=34858080")
+    fetch("/api/songs?lrclib_id=34858080")
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to load song: ${response.status}`);
