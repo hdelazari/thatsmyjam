@@ -52,7 +52,9 @@ const buildIndex = (text: string): WordIndex => {
 
 function App() {
   const [inputValue, setInputValue] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(
+    () => new URLSearchParams(window.location.search).get("q") || ""
+  );
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [originalText, setOriginalText] = useState("");
   const [songTitle, setSongTitle] = useState("");
@@ -123,10 +125,22 @@ function App() {
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const query = searchQuery.trim();
+    const params = new URLSearchParams(window.location.search);
+    params.delete("song");
+
     if (!query) {
       setSearchResults([]);
+      params.delete("q");
+      window.history.pushState({}, "", window.location.pathname);
       return;
     }
+
+    setOriginalText("");
+    setSongTitle("");
+    setWordIndex({});
+    setRevealedWords(new Set());
+    params.set("q", query);
+    window.history.pushState({}, "", `${window.location.pathname}?${params}`);
 
     fetch(`/api/songs/search?q=${encodeURIComponent(query)}`)
       .then((response) => {
@@ -143,6 +157,11 @@ function App() {
   };
 
   const handleSongSelect = (songId: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("song", songId);
+    params.delete("q");
+    window.history.pushState({}, "", `${window.location.pathname}?${params}`);
+
     fetch(`/api/songs?lrclib_id=${encodeURIComponent(songId)}`)
       .then((response) => {
         if (!response.ok) {
@@ -156,14 +175,37 @@ function App() {
         setWordIndex(buildIndex(song.lyrics));
         setRevealedWords(new Set());
         setSearchResults([]);
-        setSearchQuery("");
       })
       .catch((error) => console.error("Error loading song:", error));
   };
 
   useEffect(() => {
-    // Fetch the song from the Go backend
-    fetch("/api/songs?lrclib_id=34858080")
+    const params = new URLSearchParams(window.location.search);
+    const songId = params.get("song");
+    const query = params.get("q");
+
+    if (query) {
+      fetch(`/api/songs/search?q=${encodeURIComponent(query)}`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Failed to search songs: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((results: SearchResult[]) => setSearchResults(results))
+        .catch((error) => console.error("Error searching songs:", error));
+    }
+
+    const selectedSongId = songId || (query ? null : "34858080");
+    if (!selectedSongId) {
+      return;
+    }
+
+    params.set("song", selectedSongId);
+    window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
+
+    // Fetch the selected song from the Go backend
+    fetch(`/api/songs?lrclib_id=${encodeURIComponent(selectedSongId)}`)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to load song: ${response.status}`);
@@ -177,16 +219,19 @@ function App() {
         setWordIndex(index);
       })
       .catch((error) => {
-        console.error("Error loading file:", error);
+        console.error("Error loading song:", error);
       });
   }, []);
 
   const displayText = rebuildText(originalText, revealedWords);
   const totalUniqueWords = Object.keys(wordIndex).length;
   const revealedWordCount = revealedWords.size;
+  const hasSelectedSong = Boolean(
+    new URLSearchParams(window.location.search).get("song")
+  );
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${hasSelectedSong ? "" : "search-page"}`}>
       <form className="search-box" onSubmit={handleSearch}>
         <input
           type="search"
@@ -211,24 +256,28 @@ function App() {
         </div>
       )}
 
-      <div className="progress-tracker">
-        <h2>Progress: {revealedWordCount} / {totalUniqueWords}</h2>
-      </div>
+      {hasSelectedSong && (
+        <>
+          <div className="progress-tracker">
+            <h2>Progress: {revealedWordCount} / {totalUniqueWords}</h2>
+          </div>
 
-      <div className="song-text">
-        <h3>{songTitle || "Loading..."}</h3>
-        <pre dangerouslySetInnerHTML={{ __html: displayText }} />
-      </div>
+          <div className="song-text">
+            <h3>{songTitle || "Loading..."}</h3>
+            <pre dangerouslySetInnerHTML={{ __html: displayText }} />
+          </div>
 
-      <form className="input-box" onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={handleChange}
-          placeholder="Type something..."
-        />
-        <button type="submit">Send</button>
-      </form>
+          <form className="input-box" onSubmit={handleSubmit}>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={handleChange}
+              placeholder="Type something..."
+            />
+            <button type="submit">Send</button>
+          </form>
+        </>
+      )}
     </div>
   );
 }
